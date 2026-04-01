@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <title>Polygon Drawing Tool</title>
@@ -9,7 +9,9 @@
 rel="stylesheet"
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="./draw/leaflet.draw.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./draw/leaflet.draw.js"></script>
 
 <!-- Turf.js -->
 <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
@@ -40,130 +42,220 @@ font-size: 14px;
 
 <body>
     <h1>My first project :))</h1>
+    <label for="text">You can add text</label>
+    <textarea rows="5" cols="" id="text" onmousemove="dummy()"></textarea>
+    <input type="file" id="geojsonFile" accept=".geojson, .json">
 
 <div id="controls">
-<button onclick="drawPolygon()">Draw Polygon</button>
-<button onclick="unionPolygons()">Union</button>
+<button onclick="drawPolygon()" >Draw Polygon</button>
+<button onclick="UnionPolygons()">Union</button>
 <button onclick="intersection()">Intersection</button>
 <button onclick="substraction()">Subtraction</button>
 <button onclick="allSubstraction()">Clear Map</button>
+    <button id="create_geojson">Add Polygon from Text</button>
+    <button id="loadFileBtn">Add Polygon From File</button>
 <p style="font-size:12px; color:gray;">
 *Tip:  Click points on the map to create a polygon,operations use the last two polygons.
 </p>
 </div>
 
 <div id="map"></div>
+    <script>
+        let counter = 0;
+        function dummy(){
+        console.log("gdfgdgd " + counter++);
+    }
+        // Create map
+        const map = L.map('map').setView([46.7785, 6.6412], 13);
 
-<script>
-// Create map
-const map = L.map('map').setView([46.7785, 6.6412], 13);
+        // OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+        }).addTo(map);
+        const layergroup = L.featureGroup().addTo(map);
+        // Variables
+        let points = [];
+        let markers = [];
+        let polygons = [];
+        const colors = ['purple', 'orange', 'green', 'blue', 'pink'];
+        let colorIndex = 0;
 
-// OpenStreetMap tiles
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-maxZoom: 19
-}).addTo(map);
+        // Map click to add points
+        // map.on('click', function (e) {
+        //     const latlng = [e.latlng.lat, e.latlng.lng];
+        //     points.push(latlng);
+        //     const marker = L.marker(latlng).addTo(map);
+        //     markers.push(marker);
+        // });
 
-// Variables
-let points = [];
-let markers = [];
-let polygons = [];
-const colors = ['purple', 'orange', 'green', 'blue', 'pink'];
-let colorIndex = 0;
+        // to draw polygon from points
+        function drawPolygon() {
+            if (points.length < 3) {
+                alert("Need at least 3 points to draw a polygon");
+                return;
+            }
 
-// Map click to add points
-map.on('click', function(e) {
-const latlng = [e.latlng.lat, e.latlng.lng];
-points.push(latlng);
-const marker = L.marker(latlng).addTo(map);
-markers.push(marker);
-});
+            const color = colors[colorIndex % colors.length];
+            colorIndex++;
 
-// to draw polygon from points
-function drawPolygon() {
-if(points.length < 3) {
-alert("Need at least 3 points to draw a polygon");
-return;
-}
-
-const color = colors[colorIndex % colors.length];
-colorIndex++;
-
-const polygon = L.polygon(points, { color: color }).addTo(map);
-polygons.push(polygon);
+            const polygon = L.polygon(points, {color: color}).addTo(map);
 
 // Reset
-points = [];
-markers.forEach(m => map.removeLayer(m));
-markers = [];
-}
-
-// Union of last two polygons
-function unionPolygons() {
-if(polygons.length < 2) {
-alert("Create at least two polygons for union");
-return;
-}
-
-const geo1 = polygons[polygons.length - 2].toGeoJSON();
-const geo2 = polygons[polygons.length - 1].toGeoJSON();
-
-try {
-const union = turf.union(geo1, geo2);
-L.geoJSON(union, { color: 'red' }).addTo(map);
-} catch(e) {
-}
-}
-
-// Intersection of last two polygons
-function intersection() {
-if(polygons.length < 2) {
-alert("Create at least two polygons for intersection");
-return;
-}
-
-const geo1 = polygons[polygons.length - 2].toGeoJSON();
-const geo2 = polygons[polygons.length - 1].toGeoJSON();
-
-const inter = turf.intersect(geo1, geo2);
-if(inter) {
-L.geoJSON(inter, { color: 'blue' }).addTo(map);
-} else {
-alert("No intersection between the last two polygons");
-}
-}
-
-//other possibility for subtraction: all polygons minus last one
-/*function substraction() {
-    polygons.forEach(p => map.removeLayer(p));
-    polygons = [];
- */
-// Subtraction: last polygon minus second last
-function substraction() {
-if(polygons.length < 2) {
-alert("Create at least two polygons for subtraction");
-return;
-}
-
-const geo1 = polygons[polygons.length - 2].toGeoJSON();
-const geo2 = polygons[polygons.length - 1].toGeoJSON();
-
-const diff = turf.difference(geo1, geo2);
-if(diff) {
-L.geoJSON(diff, { color: 'blue' }).addTo(map);
-} else {
-alert("No difference found");
-}
-}
-
-// Clear all polygons and markers
-function allSubstraction() {
-    map.eachLayer(function (layer) {
-        if (!(layer instanceof L.TileLayer)) {
-            map.removeLayer(layer);
+            points = [];
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
         }
-    });
-}
-</script>
 
+
+        // Intersection of last two polygons
+        function intersection() {
+            const layers = layergroup.getLayers();
+            if (layers.length < 2) {
+                alert("Create at least two polygons for intersection");
+                return;
+            }
+
+            const geo1 = layers[layers.length - 2].toGeoJSON();
+            const geo2 = layers[layers.length - 1].toGeoJSON();
+
+            const inter = turf.intersect(geo1, geo2);
+            if (inter) {
+                L.geoJSON(inter, {color: 'blue'}).addTo(layergroup);
+            } else {
+                alert("No intersection between the last two polygons");
+            }
+        }
+
+        //other possibility for subtraction: all polygons minus last one
+        /*function substraction() {
+            polygons.forEach(p => map.removeLayer(p));
+            polygons = [];
+         */
+        // Subtraction: last polygon minus second last
+        function substraction() {
+            const layers = layergroup.getLayers();
+            if (layers.length < 2) {
+                alert("Create at least two polygons for subtraction");
+                return;
+            }
+            const geo1 = layers[layers.length - 2].toGeoJSON();
+            const geo2 = layers[layers.length - 1].toGeoJSON();
+
+            const diff = turf.difference(geo1, geo2);
+            if (diff) {
+                const l =L.geoJSON(diff, {color: 'blue'});
+                layergroup.addLayer(l);
+            } else {
+                alert("No difference found");
+            }
+        }
+
+        // Clear all polygons and markers
+        function allSubstraction() {
+            layergroup.eachLayer(function (layer) {
+                if (!(layer instanceof L.TileLayer)) {
+                    layergroup.removeLayer(layer);
+                }
+            });
+        }
+        //const example_geojson = {
+          //  "geometry": {
+          //     "type": "Polygon",
+          //     "coordinates" : [[[6, 44], [6.5, 44.5], [7, 45],[6, 44]]]
+          // }
+      // }
+        // creat Geojson
+
+       const btn = document.getElementById('create_geojson');
+        btn.addEventListener("click", function(e) {
+            e.preventDefault();
+            const element = document.getElementById('text');
+            try {
+                const geojson = JSON.parse(element.value);
+                const l = L.geoJSON(geojson, {color: "#000000"});
+                layergroup.addLayer(l.getLayers()[0]);
+                map.fitBounds(l.getBounds());
+            } catch (err) {
+                console.error(err);
+                alert(err);
+            }
+        })
+        const btn2 = document.getElementById('geojsonFile');
+        btn2.addEventListener("change", function(e) {
+            e.preventDefault();
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function () {
+                const content = reader.result;
+                const geojson = JSON.parse(content);
+                let l = L.geoJSON(geojson, {bubblingMouseEvents:false}).addTo(map);
+                map.fitBounds(l.getBounds());
+                l.on("click", function (e) {
+                   console.log("clicked");
+               })
+            }
+            reader.readAsText(file);
+        });
+        const drawnItems =  new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        var drawControl = new L.Control.Draw({
+            edit: {
+                featureGroup: drawnItems
+            }
+        });
+        map.addControl(drawControl);
+        map.on(L.Draw.Event.CREATED, function (e) {
+            drawnItems.addLayer(e.layer);
+        });
+        //get new polygons to GeoJson
+// convert a layer to geoJSON hamesha yadet basha
+        function convertLayerToGeoJson(layer){
+            let poly;
+            if (layer instanceof L.Circle){
+                // Circles are represented in leaflet as center and radius. Turf needs polygons to work. We ask it to produce a polygonized version of the cicle. 64 facets by default.
+                poly = turf.circle([layer.getLatLng().lng, layer.getLatLng().lat], layer.getRadius(), {units: "meters"});
+            } else {
+                poly = layer.toGeoJSON();
+            }
+            return poly;
+        }
+
+        function UnionPolygons() {
+            const layers = drawnItems.getLayers();
+            if (drawnItems.length < 2) {
+                alert("Create at least two polygons for union");
+                return;
+            }
+            const poly0 = convertLayerToGeoJson(layers[layers.length - 2]);
+            const poly1 = convertLayerToGeoJson(layers[layers.length - 1]);
+            try {
+                //use turf to union
+                const unionGeoJSON = turf.union(poly0, poly1);
+                //add result to map
+                if (unionGeoJSON.geometry.type === "MultiPolygon") {
+                    let coordinates = unionGeoJSON.geometry.coordinates;
+                    coordinates.forEach(coordinate => {
+                        let l = {coordinates:coordinate, type: "Polygon"};
+                        let layer = L.geoJSON(l);
+                        layer.getLayers().forEach(polygon_layers => {
+                            drawnItems.addLayer(polygon_layers);
+                        });
+
+                    })
+                } else {
+                    const unionLayer = L.geoJSON(unionGeoJSON);
+                    unionLayer.getLayers().forEach(layer => {
+                        drawnItems.addLayer(layer);
+                    });
+
+                }
+
+
+            } catch (error) {
+                console.error(error)
+            }
+        }
+
+    </script>
 </body>
 </html>
