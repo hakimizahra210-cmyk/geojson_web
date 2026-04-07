@@ -47,29 +47,24 @@ font-size: 14px;
     <input type="file" id="geojsonFile" accept=".geojson, .json">
 
 <div id="controls">
-<button onclick="drawPolygon()" >Draw Polygon</button>
 <button onclick="UnionPolygons()">Union</button>
 <button onclick="intersection()">Intersection</button>
 <button onclick="substraction()">Subtraction</button>
-<button onclick="allSubstraction()">Clear Map</button>
     <button id="create_geojson">Add Polygon from Text</button>
     <button id="loadFileBtn">Add Polygon From File</button>
-
-    <button onclick="changeSelectedColor('red')">Red</button>
-    <button onclick="changeSelectedColor('green')">Green</button>
-    <button onclick="changeSelectedColor('blue')">Blue</button>
-    <button onclick="changeSelectedColor('purple')">Purple</button>
-    <button onclick="changeSelectedColor('yellow')">Yellow</button>
-    <button onclick="changeSelectedColor('black')">Black</button>
-    <button id="undoBtn">Undo Last Action</button>
-<p style="font-size:12px; color:gray;">
-*Tip:  Click points on the map to create a polygon,operations use the last two polygons.
-</p>
+    <label for="changeSelectedColor-select">Choose a color:</label>
+    <select id="changeSelectedColor-select">
+    <option value="">--change Selected Color--</option>
+    <option value="red">red</option>
+    <option value="yellow">yellow</option>
+    <option value="black">black</option>
+    <option value="purple">purple</option>
+    <option value="pink">pink</option>
+    <option value="brown">brown</option>
+    </select>
 </div>
-
 <div id="map"></div>
     <script>
-
         // Create map
         const map = L.map('map').setView([46.7785, 6.6412], 13);
 
@@ -103,13 +98,6 @@ font-size: 14px;
         }).addTo(map);
 
         const layergroup = L.featureGroup().addTo(map);
-        // Variables
-        let points = [];
-        let markers = [];
-        let polygons = [];
-        const colors = ['purple', 'orange', 'green', 'blue', 'pink'];
-        let colorIndex = 0;
-
         // Map click to add points
         // map.on('click', function (e) {
         //     const latlng = [e.latlng.lat, e.latlng.lng];
@@ -118,84 +106,14 @@ font-size: 14px;
         //     markers.push(marker);
         // });
 
-        // to draw polygon from points
-        function drawPolygon() {
-            if (points.length < 3) {
-                alert("Need at least 3 points to draw a polygon");
-                return;
-            }
-
-            const color = colors[colorIndex % colors.length];
-            colorIndex++;
-
-            const polygon = L.polygon(points, {color: color}).addTo(map);
-
-// Reset
-            points = [];
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
-        }
-
-
-        // Intersection of last two polygons
-        /*function intersection() {
-            const layers = layergroup.getLayers();
-            if (layers.length < 2) {
-                alert("Create at least two polygons for intersection");
-                return;
-            }
-
-            const geo1 = layers[layers.length - 2].toGeoJSON();
-            const geo2 = layers[layers.length - 1].toGeoJSON();
-
-            const inter = turf.intersect(geo1, geo2);
-            if (inter) {
-                L.geoJSON(inter, {color: 'blue'}).addTo(layergroup);
-            } else {
-                alert("No intersection between the last two polygons");
-            }
-        }*/
-
-        //other possibility for subtraction: all polygons minus last one
-        /*function substraction() {
-            polygons.forEach(p => map.removeLayer(p));
-            polygons = [];
-         */
-        // Subtraction: last polygon minus second last
-        /*
-        function substraction() {
-            const layers = layergroup.getLayers();
-            if (layers.length < 2) {
-                alert("Create at least two polygons for subtraction");
-                return;
-            }
-            const geo1 = layers[layers.length - 2].toGeoJSON();
-            const geo2 = layers[layers.length - 1].toGeoJSON();
-
-            const diff = turf.difference(geo1, geo2);
-            if (diff) {
-                const l =L.geoJSON(diff, {color: 'blue'});
-                layergroup.addLayer(l);
-            } else {
-                alert("No difference found");
-            }
-        }*/
-
-        // Clear all polygons and markers
-        function allSubstraction() {
-            layergroup.eachLayer(function (layer) {
-                if (!(layer instanceof L.TileLayer)) {
-                    layergroup.removeLayer(layer);
-                }
-            });
-        }
         //const example_geojson = {
-          //  "geometry": {
-          //     "type": "Polygon",
-          //     "coordinates" : [[[6, 44], [6.5, 44.5], [7, 45],[6, 44]]]
-          // }
-      // }
+        //  "geometry": {
+        //     "type": "Polygon",
+        //     "coordinates" : [[[6, 44], [6.5, 44.5], [7, 45],[6, 44]]]
+        // }
+        // }
         // creat Geojson
+
 
         function addToDrawnItems(geojsonlayer){
 
@@ -203,7 +121,6 @@ font-size: 14px;
                 drawnItems.addLayer(polygon_layers);
             });
         }
-
        const btn = document.getElementById('create_geojson');
         btn.addEventListener("click", function(e) {
             e.preventDefault();
@@ -226,13 +143,24 @@ font-size: 14px;
             reader.onload = function () {
                 const content = reader.result;
                 const geojson = JSON.parse(content);
-                let l = L.geoJSON(geojson, {bubblingMouseEvents:false});
+                let l = L.geoJSON(geojson, {
+                    onEachFeature: function (feature, layer) {
+                        layer.on("click", function () {
+                            if (selectedItems.hasLayer(layer)) {
+                                selectedItems.removeLayer(layer);
+                                layer.setStyle({ color: "blue" });
+                            } else {
+                                selectedItems.addLayer(layer);
+                                layer.setStyle({ color: "red" });
+                            }
+                        });
+                    }
+                });
                 addToDrawnItems(l);
                 map.fitBounds(l.getBounds());
                 l.on("click", function (e) {
 
                });
-
             }
             reader.readAsText(file);
         });
@@ -290,51 +218,14 @@ font-size: 14px;
             draw_store(unionResult);
 
         }
-        function intersectsLayers(poly0, poly1) {
-            try {
-                const intersect = turf.intersect(poly0, poly1);
-                if (!intersect){
-                    alert("No intersection found");
-                    return;
-                }
-                draw_store(intersect);
-            } catch (error){
-                console.error(error);
-            }
-        }
         function intersection() {
             const layers = selectedItems.getLayers();
             if (layers.length < 2) {
                 alert("Create at least two polygons for intersection");
                 return;
             }
-            let intersect = intersectPolygons(layers);
-            if (!intersect) {
-                return;
-            }
-            if (intersect.geometry.type === "MultiPolygon") {
-                let coordinates = intersect.geometry.coordinates;
-
-                coordinates.forEach(coordinate => {
-                    let l = {coordinates: coordinate, type: "Polygon"};
-                    let layer = L.geoJSON(l);
-                    layer.getLayers().forEach(polygon_layers => {
-                        //drawnItems.addLayer(polygon_layers);
-                        computedItems.addLayer(polygon_layers);
-                    });
-
-                });
-            } else {
-                const intersectLayer = L.geoJSON(intersect);
-                intersectLayer.getLayers().forEach(layer => {
-                    //drawnItems.addLayer(layer);
-                    computedItems.addLayer(layer);
-                });
-            }
-
-            computedItems.getLayers().forEach(layer => {
-                drawnItems.addLayer(layer);
-            });
+           let intersection = intersectPolygons(layers);
+           draw_store(intersection);
         }
         function substraction() {
             const layers = selectedItems.getLayers();
@@ -342,73 +233,15 @@ font-size: 14px;
             alert ("At least 2 polygons needed for substruction");
             return;
         }
-            //rename my function that is down (substructionPolygons)
-            let substructionResult = substructionPolygons(layers);
-            if (!substructionResult) {
-                return;
-            }
-            if (substructionResult.geometry.type === "MultiPolygon") {
-                let coordinates = substructionResult.geometry.coordinates;
-
-                coordinates.forEach(coordinate => {
-                    let l = {coordinates: coordinate, type: "Polygon"};
-                    let layer = L.geoJSON(l);
-                    layer.getLayers().forEach(polygon_layers => {
-                        //drawnItems.addLayer(polygon_layers);
-                        computedItems.addLayer(polygon_layers);
-                    });
-
-                });
-            } else {
-                const substractionLayer = L.geoJSON(substructionResult);
-                substractionLayer.getLayers().forEach(layer => {
-                    //drawnItems.addLayer(layer);
-                    computedItems.addLayer(layer);
-                });
-            }
-
-            computedItems.getLayers().forEach(layer => {
-                drawnItems.addLayer(layer);
-            });
+          const substructionResult = substructionPolygons(layers);
+            draw_store(substructionResult);
         }
-        var arr = [];
-        arr = [4, 5, 6];
-        for (let i=0; i < arr.length; i++) {
-            console.log("value " + arr[i] + "  at index " + i);
-        }
-        let i = 0;
-        while (i < arr.length) {
-            console.log("value " + arr[i] + "  at index " + i);
-            i++;
-        }
-        arr.forEach( item => {
-            console.log(item);
-        });
-        arr.forEach( (item, index) => {
-            console.log("value " + item + "  at index " + index);
-        });
-        arr.forEach(function(item, index) {
-            console.log("value " + item + "  at index " + index);
-        });
-//TO DO NOW:
-        //ADD a new feature Group
-        //Make a function to select the polygons
-        //When selected a click on to make a popup and change the color
-        //Do operations on selected ones
-        //Be able to export the result after operation finished
-        //remove at the end of operation the selected items
-        //store polygons
-       // const selectedItems = new L.FeatureGroup();
-        //map.addLayer(selectedItems);
-
-
         //color found on L.Draw.Event --> leaflet
        map.on(L.Draw.Event.CREATED, function (e) {
             const layer = e.layer;
 
             // when polygon is clicked → make it red
             layer.on("click", function () {
-                saveState();
                 if (selectedItems.hasLayer(layer)) {// toggle
                     selectedItems.removeLayer(layer);
                     layer.setStyle({ color: "blue" });
@@ -420,26 +253,22 @@ font-size: 14px;
 
             drawnItems.addLayer(layer);
         });
+
 //intersection for selected polygons more than 2
         function intersectPolygons(layers) {
-
             if (!layers || layers.length < 2) return null;
-
             let current = convertLayerToGeoJson(layers[0]);
-
             for (let i = 1; i < layers.length; i++) {
                 const result = turf.intersect(current, convertLayerToGeoJson(layers[i]));
-
                 if (!result) {
                     return null;
                 }
-
                 current = result;
             }
-
             return current;
         }
         //colors
+        // Function to change color of selected polygons
         function changeSelectedColor(color) {
             const layers = selectedItems.getLayers();
             layers.forEach(layer => {
@@ -447,11 +276,15 @@ font-size: 14px;
             });
         }
 
-        //union for selected polygons more than 2
-        //impostant to remeber: call this function in to your union polygons up there with: let union = unionPoly(layers);
-        //if (!union) {
-        //    return;
-       // }
+        // Add event listener after the function exists
+        const colorSelect = document.getElementById("changeSelectedColor-select");
+
+        colorSelect.addEventListener("change", function() {
+            const selectedColor = this.value; // get the selected color
+            if (selectedColor) {
+                changeSelectedColor(selectedColor); // call the function
+            }
+        });
       function unionPolygon(layers) {
             if (!layers || layers.length < 2) return null;
             let current = convertLayerToGeoJson(layers[0]);
@@ -465,7 +298,6 @@ font-size: 14px;
             }
             return current;
       }
-
  //substruction for selected items (more than 2)
         //let substruction = substructionPolygons(layers); if (!difference){ return; }
       function substructionPolygons(layers) {
@@ -481,7 +313,6 @@ font-size: 14px;
             }
             return current;
       }
-
     </script>
 </body>
 </html>
