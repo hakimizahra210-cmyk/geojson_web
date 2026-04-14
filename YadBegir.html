@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Random Exercises </title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<button id = "btn" >click me</button>
+<div id="map"></div>
+<h1>One week progrom</h1>
+<h2>Day one/septe</h2>
+<P id = "text">hbfvws nesfb efdincowikfc dnj x ehiebbjd windnw ien c u  i wangw rk qugw a gvgtect that can makw niew swnde </P>
+</body>
+<script>
+    // create map
+    const map = L.map('map').setView([55.77, 9.64], 13);
+
+    // add tiles (the real map)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
+document.getElementById("btn").addEventListener("click", function() {
+    console.log("clicked");
+})
+function greeting(name){
+//alert ("hello" + "name +:))");
+return "hello " + name + ":))";
+}
+    console.log(greeting("ali"));
+
+let fruits = ["orange", "ananas", "apple", ""];
+    fruits.push("grapes");
+    console.log(fruits);
+    fruits.forEach(fruit => {
+        console.log(fruit);
+    })
+
+function square(a, b){
+    return a * b;
+}
+function calculate(){
+    let a = Number(document.getElementById("a").value);
+    let b = Number(document.getElementById("b").value);
+    let result = square(a, b);
+    console.log(result);
+}
+document.getElementById("text").addEventListener("click", function() {
+    if (this.style.color === "black"){
+        this.style.color = "red";
+    }else{
+        this.style.color = "green";
+    }
+})
+/*layer.on("click", function () {
+
+    if (selectedItems.hasLayer(layer)) {
+        // already selected → unselect
+        selectedItems.removeLayer(layer);
+        layer.setStyle({ color: "blue" });
+
+    } else {
+        // not selected → select
+        selectedItems.addLayer(layer);
+        layer.setStyle({ color: "red" });
+    }
+
+});*/
+
+</script>
+</html>
