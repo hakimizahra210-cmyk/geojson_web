@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Polygon Drawing Tool</title>
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="./draw/leaflet.draw.css"/>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./draw/leaflet.draw.js"></script>
+
+    <!-- Turf -->
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        body { margin: 0; font-family: Arial; }
+        #map { width: 100%; height: 90vh; }
+        #controls { padding: 10px; background: #f0f0f0; }
+        button { margin: 3px; padding: 5px 10px; }
+    </style>
+</head>
+
+<body>
+
+<h1>My first project :))</h1>
+
+<textarea id="text" rows="5"></textarea>
+<input type="file" id="geojsonFile" accept=".geojson,.json">
+
+<div id="controls">
+
+    <button id="unionBtn">Union</button>
+    <button id="intersectionBtn">Intersection</button>
+    <button id="subtractionBtn">Subtraction</button>
+
+    <button id="create_geojson">Add Polygon from Text</button>
+    <button id="loadFileBtn">Add Polygon From File</button>
+
+    <select id="changeSelectedColor-select">
+        <option value="">--color--</option>
+        <option value="red">red</option>
+        <option value="yellow">yellow</option>
+        <option value="black">black</option>
+        <option value="purple">purple</option>
+        <option value="pink">pink</option>
+        <option value="brown">brown</option>
+    </select>
+
+    <button id="exportGeoJSON">Export</button>
+
+</div>
+
+<div id="map"></div>
+
+<script>
+
+    // ================= GLOBALS =================
+    let map;
+    let color_map = {};
+
+    const drawnItems = new L.FeatureGroup();
+    const selectedItems = new L.FeatureGroup();
+    const computedItems = new L.FeatureGroup();
+    let selected_ids = [];
+
+
+    // ================= HELPERS =================
+    function changeSelectedColor(color) {
+        selectedItems.eachLayer(layer => {
+            layer.setStyle({ color });
+            color_map[layer._leaflet_id] = color;
+        });
+        selectedItems.clearLayers();
+    }
+
+    function addLayerEvents(layer) {
+        layer.on("click", function () {
+            if (selectedItems.hasLayer(layer)) {
+                selectedItems.removeLayer(layer);
+                layer.setStyle({ color: color_map[layer._leaflet_id] || "blue" });
+            } else {
+                layer.setStyle({ color: "red" });
+                selectedItems.addLayer(layer);
+            }
+        });
+    }
+
+    function addToDrawnItemsLayer(layer) {
+        drawnItems.addLayer(layer);
+        color_map[layer._leaflet_id] = layer.options.color || "blue";
+    }
+
+    function convertLayerToGeoJson(layer) {
+        if (layer instanceof L.Circle) {
+            return turf.circle(
+                [layer.getLatLng().lng, layer.getLatLng().lat],
+                layer.getRadius(),
+                { units: "meters" }
+            );
+        }
+        return layer.toGeoJSON();
+    }
+
+    function draw_store(result) {
+        if (!result) {
+            alert("Operation failed");
+            return;
+        }
+
+        const layer = L.geoJSON(result);
+        layer.eachLayer(l => {
+            addLayerEvents(l);
+            addToDrawnItemsLayer(l);
+        });
+    }
+
+
+    // ================= HANDLE FUNCTIONS =================
+
+    function handleUnionClick() {
+        const layers = selectedItems.getLayers();
+        if (layers.length < 2) return alert("Need 2 polygons");
+
+        let result = computeUnion(layers);
+        draw_store(result);
+    }
+
+    function handleIntersectionClick() {
+        const layers = selectedItems.getLayers();
+        if (layers.length < 2) return alert("Need 2 polygons");
+
+        let result = computeIntersection(layers);
+        draw_store(result);
+    }
+
+    function handleSubtractionClick() {
+        const layers = selectedItems.getLayers();
+        if (layers.length < 2) return alert("Need 2 polygons");
+
+        let result = computeSubtraction(selected_ids);
+        draw_store(result);
+    }
+
+
+    // ================= COMPUTE FUNCTIONS =================
+
+    function computeUnion(layers) {
+        let current = convertLayerToGeoJson(layers[0]);
+
+        for (let i = 1; i < layers.length; i++) {
+            current = turf.union(current, convertLayerToGeoJson(layers[i]));
+            if (!current) return null;
+        }
+        return current;
+    }
+
+    function computeIntersection(layers) {
+        let current = convertLayerToGeoJson(layers[0]);
+
+        for (let i = 1; i < layers.length; i++) {
+            current = turf.intersect(current, convertLayerToGeoJson(layers[i]));
+            if (!current) return null;
+        }
+        return current;
+    }
+
+    function computeSubtraction(ids) {
+        let current = convertLayerToGeoJson(selectedItems.getLayer(ids[0]));
+
+        for (let i = 1; i < ids.length; i++) {
+            current = turf.difference(
+                current,
+                convertLayerToGeoJson(selectedItems.getLayer(ids[i]))
+            );
+            if (!current) return null;
+        }
+        return current;
+    }
+
+
+    // ================= TEXT INPUT =================
+
+    function evt_listener(e) {
+        e.preventDefault();
+
+        try {
+            const geojson = JSON.parse($("#text").val());
+            const layer = L.geoJSON(geojson);
+
+            layer.eachLayer(addToDrawnItemsLayer);
+            map.fitBounds(layer.getBounds());
+
+        } catch (err) {
+            alert("Invalid GeoJSON");
+        }
+    }
+
+    // ================= JQUERY EVENTS =================
+
+    $(function () {
+
+        $("#unionBtn").click(handleUnionClick);
+        $("#intersectionBtn").click(handleIntersectionClick);
+        $("#subtractionBtn").click(handleSubtractionClick);
+
+        $("#create_geojson").click(evt_listener);
+
+        $("#loadFileBtn").click(() => $("#geojsonFile").click());
+
+        $("#geojsonFile").change(function (e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function () {
+                const geojson = JSON.parse(reader.result);
+                const layer = L.geoJSON(geojson);
+
+                layer.eachLayer(addToDrawnItemsLayer);
+                map.fitBounds(layer.getBounds());
+            };
+
+            reader.readAsText(file);
+        });
+
+        $("#changeSelectedColor-select").change(function () {
+            const color = $(this).val();
+            if (color) changeSelectedColor(color);
+        });
+
+    });
+
+
+    // ================= MAP INIT =================
+
+    window.onload = function () {
+
+        map = L.map("map").setView([46.7785, 6.6412], 13);
+
+        const osm = L.tileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            { maxZoom: 19 }
+        ).addTo(map);
+
+        map.addLayer(drawnItems);//a folder that stores all your shapes
+
+        const drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems }
+        });
+
+        map.addControl(drawControl); //Creates drawing toolbar (from Leaflet Draw) let users draw,edit,delete them
+
+        map.on(L.Draw.Event.CREATED, function (e) {//show draw toolbar, This actually puts the buttons on the map
+            const layer = e.layer; //e.layer=new polygon
+            addLayerEvents(layer);//makes it clickable/selectable
+            addToDrawnItemsLayer(layer);//stores it
+        });
+
+        map.on(L.Draw.Event.DELETED, function (e) {
+            const layers = e.layers;
+
+            layers.eachLayer(layer => {
+                selectedItems.removeLayer(layer);
+            });
+        });
+
+        L.control.layers({ OSM: osm }, { //Creates a small panel where user can:Turn base map ON/OFF (OSM),Show/hide your polygons (Drawn)
+            Drawn: drawnItems
+        }).addTo(map);
+    };
+
+</script>
+
+</body>
+</html>
