@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Polygon Drawing Tool</title>
 
     <!-- Leaflet -->
@@ -15,29 +16,52 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
 
     <style>
         body { margin: 0; font-family: Arial; }
         #map { width: 100%; height: 90vh; }
-        #controls { padding: 10px; background: #f0f0f0; }
+        /*#controls { padding: 10px; background: #f0f0f0; }*/
         button { margin: 3px; padding: 5px 10px; }
+        .leaflet-bar a:hover, .leaflet-bar a:hover,
+        a.leaflet-draw-toolbar-button-enabled {
+           background-color: blue;
+        }
+
     </style>
 </head>
 
 <body>
-
+<div class="container">
+    <div class="container-fluid p-5 bg-primary text-white text-center">
 <h1>My first project :))</h1>
+    </div>
+<div class="row">
+    <div class="col">
+<textarea id="text" rows="5" class="form-control"></textarea>
+    </div>
+    <div class="col">
+<input type="file" id="geojsonFile" accept=".geojson,.json" class="form-control">
+    </div>
+    </div>
+    <div class="row">
+    <div id="controls" class="col-5">
+<!--        <div class="col-6"></div>-->
+    </div>
+        <div id="controls2" class="col-3">
+            <!--        <div class="col-6"></div>-->
+        </div>
+        <div class="col-4">
+            <div id="area" style="display: none"></div>
+            <!--        <div class="col-6"></div>-->
+        </div>
+    </div>
 
-<textarea id="text" rows="5"></textarea>
-<input type="file" id="geojsonFile" accept=".geojson,.json">
 
-<div id="controls">
-
-    <button id="unionBtn">Union</button>
+    <!--<button id="unionBtn">Union</button>
     <button id="intersectionBtn">Intersection</button>
     <button id="subtractionBtn">Subtraction</button>
-
     <button id="create_geojson">Add Polygon from Text</button>
     <button id="loadFileBtn">Add Polygon From File</button>
 
@@ -53,9 +77,15 @@
 
     <button id="exportGeoJSON">Export</button>
 
-</div>
-
+</div> -->
+    <div class="row">
 <div id="map"></div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
 
 <script>
 
@@ -83,10 +113,16 @@
             if (selectedItems.hasLayer(layer)) {
                 selectedItems.removeLayer(layer);
                 layer.setStyle({ color: color_map[layer._leaflet_id] || "blue" });
+                getArea();
+                if (selectedItems.getLayers().length === 0){
+                    $("#area").html("").hide();
+                }
             } else {
                 layer.setStyle({ color: "red" });
                 selectedItems.addLayer(layer);
+                getArea();
             }
+
         });
     }
 
@@ -146,6 +182,27 @@
         draw_store(result);
     }
 
+    function getArea() {
+        const layers = selectedItems.getLayers();
+        if (layers.length === 0) {
+            $("#area").html("").hide();
+        }
+        const unionBoth = computeUnion(layers);
+        let total = turf.area(unionBoth);
+        layers.forEach(layer => {
+            let current = convertLayerToGeoJson(layer);
+            let area = turf.area(current);
+            console.log(area);
+            layer.bindPopup("Area: " + area.toFixed(3) + " m²").openPopup();
+
+        });
+        // const ele = document.getElementById("area");
+        // ele.innerHTML = "Area: " + total + " m2";
+        // ele.style = "";
+        $("#area").html("Area: " + total + " m2").show();
+
+    }
+
 
     // ================= COMPUTE FUNCTIONS =================
 
@@ -181,38 +238,26 @@
         }
         return current;
     }
-
-
-    // ================= TEXT INPUT =================
-
-    function evt_listener(e) {
-        e.preventDefault();
-
-        try {
-            const geojson = JSON.parse($("#text").val());
-            const layer = L.geoJSON(geojson);
-
-            layer.eachLayer(addToDrawnItemsLayer);
-            map.fitBounds(layer.getBounds());
-
-        } catch (err) {
-            alert("Invalid GeoJSON");
-        }
-    }
-
-    // ================= JQUERY EVENTS =================
-
+    // =======> JQUERY EVENTS
+    // $(document).ready(function () {})
+    const colors = [
+        {value: " ", text: "Color"},
+        {value: "Red", text: "Red"},
+        {value: "Green", text: "Green"},
+        {value: "Pink", text: "Pink"},
+        {value: "Black", text: "Black"},
+        {value: "Purple", text: "Purple"},
+    ];
     $(function () {
-
         $("#unionBtn").click(handleUnionClick);
         $("#intersectionBtn").click(handleIntersectionClick);
         $("#subtractionBtn").click(handleSubtractionClick);
 
         $("#create_geojson").click(evt_listener);
+        const $geojsonFile = $("#geojsonFile");
+        $("#loadFileBtn").click(() => $geojsonFile.click());
 
-        $("#loadFileBtn").click(() => $("#geojsonFile").click());
-
-        $("#geojsonFile").change(function (e) {
+        $geojsonFile.change(function (e) {
             const file = e.target.files[0];
             const reader = new FileReader();
 
@@ -227,17 +272,45 @@
             reader.readAsText(file);
         });
 
-        $("#changeSelectedColor-select").change(function () {
-            const color = $(this).val();
-            if (color) changeSelectedColor(color);
+
+        /* function evt_listener(e) {
+            e.preventDefault();
+
+     try {
+        const textArea = document.getElementById("text");
+        const geojson = JSON.parse(textArea.value);
+
+        const layer = L.geoJSON(geojson);
+
+        layer.eachLayer(function (l) {
+            addToDrawnItemsLayer(l);
         });
 
-    });
+        map.fitBounds(layer.getBounds());
 
+    } catch (err) {
+        alert("Invalid GeoJSON");
+    }
+}   up is JS version */      //=======> Text input:
+        function evt_listener(e) {
+            e.preventDefault();
+            const input = $("#text").val();
+            if (input.length < 2) return;
+            try {
+                const geojson = JSON.parse(input);
+                const layer = L.geoJSON(geojson);
 
-    // ================= MAP INIT =================
+                layer.eachLayer(addToDrawnItemsLayer);
+                map.fitBounds(layer.getBounds());
 
-    window.onload = function () {
+            } catch (err) {
+                alert("Invalid GeoJSON");
+            }
+        }
+        // $("#changeSelectedColor-select").change(function () {
+        //     const color = $(this).val();
+        //     if (color) changeSelectedColor(color);
+        // });
 
         map = L.map("map").setView([46.7785, 6.6412], 13);
 
@@ -269,9 +342,57 @@
         });
 
         L.control.layers({ OSM: osm }, { //Creates a small panel where user can:Turn base map ON/OFF (OSM),Show/hide your polygons (Drawn)
-            Drawn: drawnItems
+            "Drawn": drawnItems
         }).addTo(map);
-    };
+
+
+    const controls = $("#controls");
+    const unionBtn = $("<button>", {
+        "type": "button",
+        id: "unionBtn", text: "Union", "class": "btn btn-primary"
+    });
+        unionBtn.on("click", handleUnionClick);
+
+    controls.append(unionBtn);
+
+    const intersectionBtn = $("<button>", {"type": "button",
+        id: "intersectionBtn", text: "Intersection", "class": "btn btn-primary"
+    });
+    intersectionBtn.on("click", handleIntersectionClick);
+    controls.append(intersectionBtn);
+
+    const subtractionBtn = $("<button>", {"type": "button",
+        id: "subtractionBtn", text: "Subtraction", "class": "btn btn-primary"
+    });
+    subtractionBtn.on("click", handleSubtractionClick);
+    controls.append(subtractionBtn);
+
+    /*const create_geojson = $("<button>", {
+        id: "create_geojson", text: "Add Polygon from Text"
+    });
+    create_geojson.on("click", create_geojson);
+    controls.append(create_geojson);*/
+
+    const loadFileBtn = $("<button>", {"type": "button",
+        id: "loadFileBtn", text: "Add Polygon From File", "class": "btn btn-primary"
+    });
+    loadFileBtn.on("click", loadFileBtn);
+    controls.append(loadFileBtn);
+
+
+    const control2 = $("#controls2");
+    const select = $("<select>", {"class": "form-select"});
+    select.on("change",  function (e) {
+        const color = $(this).val();
+        if (color) changeSelectedColor(color);
+    });
+    control2.append(select);
+    colors.forEach(color => {
+        const opt = $("<option>", {"value": color.value}).html(color.text);
+        select.append(opt);
+    })
+});
+
 
 </script>
 
