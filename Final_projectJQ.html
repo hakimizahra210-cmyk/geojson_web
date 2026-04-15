@@ -16,9 +16,8 @@
     <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
     <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script><!--new-->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-
-
     <style>
         body { margin: 0; font-family: Arial; }
         #map { width: 100%; height: 90vh; }
@@ -31,16 +30,35 @@
 
     </style>
 </head>
-
 <body>
-<div class="container">
+<div class="container mt-5 ">
     <div class="container-fluid p-5 bg-primary text-white text-center">
 <h1>My first project :))</h1>
     </div>
-<div class="row">
-    <div class="col">
-<textarea id="text" rows="5" class="form-control"></textarea>
+    <div class="container mt-3">
+        <h2>Textarea</h2>
+        <p>Please enter your text to make the polygon:</p>
+        <form action="/action_page.php">
+            <div class="mb-3 mt-3">
+                <textarea class="form-control" rows="5" id="comment" name="text"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
     </div>
+    <div class="container mt-2">
+        <input type="number" id="areaInput" class="form-control"
+               placeholder="Enter area in m²">
+        <div class="mt-2">
+            <button id="circleBtn" class="btn btn-primary">
+                Generate Circle
+            </button>
+            <button id="squareBtn" class="btn btn-success">
+                Generate Square
+            </button>
+        </div>
+
+    </div>
+    <div class="container mt-3">
     <div class="col">
 <input type="file" id="geojsonFile" accept=".geojson,.json" class="form-control">
     </div>
@@ -88,6 +106,8 @@
         crossorigin="anonymous"></script>
 
 <script>
+    //==========Area=============
+
 
     // ================= GLOBALS =================
     let map;
@@ -196,6 +216,8 @@
             layer.bindPopup("Area: " + area.toFixed(3) + " m²").openPopup();
 
         });
+
+
         // const ele = document.getElementById("area");
         // ele.innerHTML = "Area: " + total + " m2";
         // ele.style = "";
@@ -241,14 +263,81 @@
     // =======> JQUERY EVENTS
     // $(document).ready(function () {})
     const colors = [
-        {value: " ", text: "Color"},
-        {value: "Red", text: "Red"},
-        {value: "Green", text: "Green"},
-        {value: "Pink", text: "Pink"},
-        {value: "Black", text: "Black"},
-        {value: "Purple", text: "Purple"},
+        {value: "", text: "Search color..."},
+        { value: "red", text: "Red" },
+        { value: "darkred", text: "Dark Red" },
+        { value: "green", text: "Green" },
+        { value: "lime", text: "Lime" },
+        { value: "blue", text: "Blue" },
+        { value: "navy", text: "Navy" },
+        { value: "cyan", text: "Cyan" },
+        { value: "teal", text: "Teal" },
+        { value: "pink", text: "Pink" },
+        { value: "hotpink", text: "Hot Pink" },
+        { value: "purple", text: "Purple" },
+        { value: "violet", text: "Violet" },
+        { value: "orange", text: "Orange" },
+        { value: "gold", text: "Gold" },
+        { value: "yellow", text: "Yellow" },
+        { value: "brown", text: "Brown" },
+        { value: "maroon", text: "Maroon" },
+        { value: "gray", text: "Gray" },
+        { value: "darkgray", text: "Dark Gray" },
+        { value: "lightgray", text: "Light Gray" },
+        { value: "black", text: "Black" },
+        { value: "white", text: "White" }
     ];
     $(function () {
+        let shapeMode = "circle";
+            $("#circleBtn").on("click", function () {
+                shapeMode = "circle";
+                generateShape();
+            });
+            $("#squareBtn").on("click", function () {
+                shapeMode = "square";
+                generateShape();
+            });
+function generateShape() {
+    const area = parseFloat($("#areaInput").val());
+    if (area < 0) {
+        alert("Enter valid area!");
+        return;
+    }
+    const center = map.getCenter();
+    let geojson;
+    let layer;
+    if (shapeMode === "circle") {
+        const radius = Math.sqrt(area / Math.PI);
+        geojson = turf.circle(
+            [center.lng, center.lat], radius, {"units": "meters"}
+        );
+
+        layer = L.geoJSON(geojson);
+        layer.eachLayer(l => {
+            addLayerEvents(l);
+            addToDrawnItemsLayer(l);
+        });
+    }
+    else if (shapeMode === "square") {
+        const side = Math.sqrt(area);
+       const offset = side/2 /111320 ;//lng.lat are These are degrees, NOT meters.
+        const lat = center.lat;
+        const lng = center.lng;
+
+        layer = L.polygon([[
+            [lat - offset, lng - offset], // bottom left
+            [lat + offset, lng - offset], // bottom right
+            [lat + offset, lng + offset], // top right
+            [lat - offset, lng + offset], // top left
+            [lat - offset, lng - offset]  // close shape
+        ]]);
+        addLayerEvents(layer);
+        addToDrawnItemsLayer(layer);
+    }
+
+
+    map.addLayer(layer);
+    }
         $("#unionBtn").click(handleUnionClick);
         $("#intersectionBtn").click(handleIntersectionClick);
         $("#subtractionBtn").click(handleSubtractionClick);
@@ -347,22 +436,23 @@
 
 
     const controls = $("#controls");
-    const unionBtn = $("<button>", {
+    const unionBtn = $("<button>Union", {
         "type": "button",
         id: "unionBtn", text: "Union", "class": "btn btn-primary"
+
     });
         unionBtn.on("click", handleUnionClick);
 
     controls.append(unionBtn);
 
     const intersectionBtn = $("<button>", {"type": "button",
-        id: "intersectionBtn", text: "Intersection", "class": "btn btn-primary"
+        id: "intersectionBtn", text: "Intersection", "class": "btn btn-danger"
     });
     intersectionBtn.on("click", handleIntersectionClick);
     controls.append(intersectionBtn);
 
     const subtractionBtn = $("<button>", {"type": "button",
-        id: "subtractionBtn", text: "Subtraction", "class": "btn btn-primary"
+        id: "subtractionBtn", text: "Subtraction", "class": "btn btn-success"
     });
     subtractionBtn.on("click", handleSubtractionClick);
     controls.append(subtractionBtn);
@@ -374,23 +464,43 @@
     controls.append(create_geojson);*/
 
     const loadFileBtn = $("<button>", {"type": "button",
-        id: "loadFileBtn", text: "Add Polygon From File", "class": "btn btn-primary"
+        id: "loadFileBtn", text: "Add Polygon From File", "class": " btn btn-warning"
     });
     loadFileBtn.on("click", loadFileBtn);
     controls.append(loadFileBtn);
 
 
-    const control2 = $("#controls2");
-    const select = $("<select>", {"class": "form-select"});
-    select.on("change",  function (e) {
-        const color = $(this).val();
-        if (color) changeSelectedColor(color);
-    });
-    control2.append(select);
-    colors.forEach(color => {
-        const opt = $("<option>", {"value": color.value}).html(color.text);
-        select.append(opt);
-    })
+        const control2 = $("#controls2");
+
+        const select = $("<select>", {
+            class: "form-select"
+        });
+
+        select.on("change", function () {
+            const color = $(this).val();
+            if (color) changeSelectedColor(color);
+        });
+
+        control2.append(select);
+
+        colors.forEach(color => {
+            const opt = $("<option>", {
+                value: color.value, text: color.text
+            });
+            select.append(opt);
+        });
+
+
+
+       /* $("generateCircleByArea").on("click", function (e) {
+            const area = parseFloat($("areaInput").val());
+            if (!area|| area < 1 ){
+                alert("Enter Valid area");
+                return;
+            }
+        })
+        const Rad = Math.sqrt(area / Math.PI);
+        const circle = turf.circle*/
 });
 
 
