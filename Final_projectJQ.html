@@ -38,12 +38,13 @@
     <div class="container mt-3">
         <h2>Textarea</h2>
         <p>Please enter your text to make the polygon:</p>
-        <form action="/action_page.php">
             <div class="mb-3 mt-3">
                 <textarea class="form-control" rows="5" id="comment" name="text"></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">Submit</button>
-        </form>
+    </div>
+    <div class="container mt-3">
+        <input type="range" class="form-range" min="0.3" max="3" value="1" id="shapeSlider" step="0.01">
+        <p id="slidervalue"></p>
     </div>
     <div class="container mt-2">
         <input type="number" id="areaInput" class="form-control"
@@ -106,9 +107,6 @@
         crossorigin="anonymous"></script>
 
 <script>
-    //==========Area=============
-
-
     // ================= GLOBALS =================
     let map;
     let color_map = {};
@@ -252,10 +250,7 @@
         let current = convertLayerToGeoJson(selectedItems.getLayer(ids[0]));
 
         for (let i = 1; i < ids.length; i++) {
-            current = turf.difference(
-                current,
-                convertLayerToGeoJson(selectedItems.getLayer(ids[i]))
-            );
+            current = turf.difference(current, convertLayerToGeoJson(selectedItems.getLayer(ids[i])));
             if (!current) return null;
         }
         return current;
@@ -288,56 +283,111 @@
         { value: "white", text: "White" }
     ];
     $(function () {
-        let shapeMode = "circle";
-            $("#circleBtn").on("click", function () {
-                shapeMode = "circle";
-                generateShape();
-            });
-            $("#squareBtn").on("click", function () {
-                shapeMode = "square";
-                generateShape();
-            });
-function generateShape() {
-    const area = parseFloat($("#areaInput").val());
-    if (area < 0) {
-        alert("Enter valid area!");
-        return;
-    }
-    const center = map.getCenter();
-    let geojson;
-    let layer;
-    if (shapeMode === "circle") {
-        const radius = Math.sqrt(area / Math.PI);
-        geojson = turf.circle(
-            [center.lng, center.lat], radius, {"units": "meters"}
-        );
-
-        layer = L.geoJSON(geojson);
-        layer.eachLayer(l => {
-            addLayerEvents(l);
-            addToDrawnItemsLayer(l);
+        let dynamicLayer = null;
+        $("#shapeSlider").on("input", function () {
+            const sliderValue = Number(this.value);
+            $("#slidervalue").html(sliderValue);
+            generateDynamicRectangle(sliderValue);
+        })
+        $("#circleBtn").on("click", function () {
+            generateShape("circle");
         });
-    }
-    else if (shapeMode === "square") {
-        const side = Math.sqrt(area);
-       const offset = side/2 /111320 ;//lng.lat are These are degrees, NOT meters.
-        const lat = center.lat;
-        const lng = center.lng;
+        $("#squareBtn").on("click", function () {
+            generateShape("square");
+        });
+        //function Area(){
+        //     Area = parseFloat($("#areaInput").val());
+        // }
+        function generateDynamicRectangle(sliderValue) {
+            if (dynamicLayer){
+                dynamicLayer.eachLayer(layer => {
+                    drawnItems.removeLayer(layer);
+                });
+            }
+            const area = parseFloat($("#areaInput").val());
+            if (!area || area <= 0)
+                return;
+            const center = map.getCenter();
 
-        layer = L.polygon([[
-            [lat - offset, lng - offset], // bottom left
-            [lat + offset, lng - offset], // bottom right
-            [lat + offset, lng + offset], // top right
-            [lat - offset, lng + offset], // top left
-            [lat - offset, lng - offset]  // close shape
-        ]]);
-        addLayerEvents(layer);
-        addToDrawnItemsLayer(layer);
-    }
+            const a = Math.sqrt(area)*sliderValue;
+            const b = area/a;
+            const c = Math.sqrt((a/2)**2 + (b/2)**2);
+            const alpha = (180/Math.PI)* Math.atan(a/b);
+            //const alpha2 = alpha * (180 / Math.PI);
 
+            const turfcenter = [center.lng, center.lat];
+            const p1 = turf.destination(turfcenter, c, 90-alpha,{ units: "meters" });
+            const p2 = turf.destination(turfcenter, c, 90+alpha, { units: "meters" });
+            const p3 = turf.destination(turfcenter, c, -alpha-90, { units: "meters" });
+            const p4 = turf.destination(turfcenter, c, -90+alpha, { units: "meters" });
 
-    map.addLayer(layer);
-    }
+            const square = turf.polygon([[
+                p1.geometry.coordinates,
+                p2.geometry.coordinates,
+                p3.geometry.coordinates,
+                p4.geometry.coordinates,
+                p1.geometry.coordinates
+            ]]);
+            dynamicLayer = L.geoJSON(square);
+            dynamicLayer.eachLayer(layer => {
+                addLayerEvents(layer);
+                addToDrawnItemsLayer(layer);
+            });
+        }
+
+        function generateShape(shapeMode) {
+            const area = parseFloat($("#areaInput").val());
+            if (area < 0) {
+                alert("Enter valid area!");
+                return;
+            }
+            const center = map.getCenter();
+            let geojson;
+            let layer;
+            if (shapeMode === "circle") {
+                const radius = Math.sqrt(area / Math.PI);
+                geojson = turf.circle(
+                    [center.lng, center.lat], radius, {"units": "meters"}
+                );
+
+                layer = L.geoJSON(geojson);
+                layer.eachLayer(l => {
+                    addLayerEvents(l);
+                    addToDrawnItemsLayer(l);
+                });
+            }
+            else if (shapeMode === "square") {
+                generateDynamicRectangle();
+                const side = Math.sqrt(area);
+                const halfSide = side / 2;
+
+                const centerLatLng = map.getCenter();
+                const center = turf.point([centerLatLng.lng, centerLatLng.lat]);
+
+                const cornerDistance = halfSide * Math.sqrt(2);
+
+                const p1 = turf.destination(center, cornerDistance, 45, { units: "meters" });
+                const p2 = turf.destination(center, cornerDistance, 135, { units: "meters" });
+                const p3 = turf.destination(center, cornerDistance, 225, { units: "meters" });
+                const p4 = turf.destination(center, cornerDistance, 315, { units: "meters" });
+
+                const square = turf.polygon([[
+                    p1.geometry.coordinates,
+                    p2.geometry.coordinates,
+                    p3.geometry.coordinates,
+                    p4.geometry.coordinates,
+                    p1.geometry.coordinates
+                ]]);
+
+                layer = L.geoJSON(square);
+
+                layer.eachLayer(l => {
+                    addLayerEvents(l);
+                    addToDrawnItemsLayer(l);
+                });
+            }
+            map.addLayer(layer);
+        }
         $("#unionBtn").click(handleUnionClick);
         $("#intersectionBtn").click(handleIntersectionClick);
         $("#subtractionBtn").click(handleSubtractionClick);
@@ -435,39 +485,39 @@ function generateShape() {
         }).addTo(map);
 
 
-    const controls = $("#controls");
-    const unionBtn = $("<button>Union", {
-        "type": "button",
-        id: "unionBtn", text: "Union", "class": "btn btn-primary"
+        const controls = $("#controls");
+        const unionBtn = $("<button>Union", {
+            "type": "button",
+            id: "unionBtn", text: "Union", "class": "btn btn-primary"
 
-    });
+        });
         unionBtn.on("click", handleUnionClick);
 
-    controls.append(unionBtn);
+        controls.append(unionBtn);
 
-    const intersectionBtn = $("<button>", {"type": "button",
-        id: "intersectionBtn", text: "Intersection", "class": "btn btn-danger"
-    });
-    intersectionBtn.on("click", handleIntersectionClick);
-    controls.append(intersectionBtn);
+        const intersectionBtn = $("<button>", {"type": "button",
+            id: "intersectionBtn", text: "Intersection", "class": "btn btn-danger"
+        });
+        intersectionBtn.on("click", handleIntersectionClick);
+        controls.append(intersectionBtn);
 
-    const subtractionBtn = $("<button>", {"type": "button",
-        id: "subtractionBtn", text: "Subtraction", "class": "btn btn-success"
-    });
-    subtractionBtn.on("click", handleSubtractionClick);
-    controls.append(subtractionBtn);
+        const subtractionBtn = $("<button>", {"type": "button",
+            id: "subtractionBtn", text: "Subtraction", "class": "btn btn-success"
+        });
+        subtractionBtn.on("click", handleSubtractionClick);
+        controls.append(subtractionBtn);
 
-    /*const create_geojson = $("<button>", {
-        id: "create_geojson", text: "Add Polygon from Text"
-    });
-    create_geojson.on("click", create_geojson);
-    controls.append(create_geojson);*/
+        /*const create_geojson = $("<button>", {
+            id: "create_geojson", text: "Add Polygon from Text"
+        });
+        create_geojson.on("click", create_geojson);
+        controls.append(create_geojson);*/
 
-    const loadFileBtn = $("<button>", {"type": "button",
-        id: "loadFileBtn", text: "Add Polygon From File", "class": " btn btn-warning"
-    });
-    loadFileBtn.on("click", loadFileBtn);
-    controls.append(loadFileBtn);
+        const loadFileBtn = $("<button>", {"type": "button",
+            id: "loadFileBtn", text: "Add Polygon From File", "class": " btn btn-warning"
+        });
+        loadFileBtn.on("click", loadFileBtn);
+        controls.append(loadFileBtn);
 
 
         const control2 = $("#controls2");
@@ -492,16 +542,16 @@ function generateShape() {
 
 
 
-       /* $("generateCircleByArea").on("click", function (e) {
-            const area = parseFloat($("areaInput").val());
-            if (!area|| area < 1 ){
-                alert("Enter Valid area");
-                return;
-            }
-        })
-        const Rad = Math.sqrt(area / Math.PI);
-        const circle = turf.circle*/
-});
+        /* $("generateCircleByArea").on("click", function (e) {
+             const area = parseFloat($("areaInput").val());
+             if (!area|| area < 1 ){
+                 alert("Enter Valid area");
+                 return;
+             }
+         })
+         const Rad = Math.sqrt(area / Math.PI);
+         const circle = turf.circle*/
+    });
 
 
 </script>
