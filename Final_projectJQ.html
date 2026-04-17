@@ -132,12 +132,14 @@
                 selectedItems.removeLayer(layer);
                 layer.setStyle({ color: color_map[layer._leaflet_id] || "blue" });
                 getArea();
+                selected_ids.pop(layer._leaflet_id);
                 if (selectedItems.getLayers().length === 0){
                     $("#area").html("").hide();
                 }
             } else {
                 layer.setStyle({ color: "red" });
                 selectedItems.addLayer(layer);
+                selected_ids.push(layer._leaflet_id);
                 getArea();
             }
 
@@ -255,6 +257,31 @@
         }
         return current;
     }
+
+    function generateDynamicRectangle(center, area, slider) {
+        if (slider === 0 || area <= 0) {
+            return null;
+        }
+        const a = Math.sqrt(area)*slider;
+        const b = area/a;
+        const c = Math.sqrt((a/2)**2 + (b/2)**2);
+        const alpha = (180/Math.PI)* Math.atan(a/b);
+        //const alpha2 = alpha * (180 / Math.PI);
+
+        const turfcenter = [center.lng, center.lat];
+        const p1 = turf.destination(turfcenter, c, 90-alpha,{ units: "meters" });
+        const p2 = turf.destination(turfcenter, c, 90+alpha, { units: "meters" });
+        const p3 = turf.destination(turfcenter, c, -alpha-90, { units: "meters" });
+        const p4 = turf.destination(turfcenter, c, -90+alpha, { units: "meters" });
+
+        return turf.polygon([[
+            p1.geometry.coordinates,
+            p2.geometry.coordinates,
+            p3.geometry.coordinates,
+            p4.geometry.coordinates,
+            p1.geometry.coordinates
+        ]]);
+    }
     // =======> JQUERY EVENTS
     // $(document).ready(function () {})
     const colors = [
@@ -283,12 +310,42 @@
         { value: "white", text: "White" }
     ];
     $(function () {
+       let marker;
         let dynamicLayer = null;
-        $("#shapeSlider").on("input", function () {
-            const sliderValue = Number(this.value);
+        let sliderValue = 1;
+
+        function getDynamicRectangleInputs() {
+            sliderValue = Number($("#shapeSlider").val());
             $("#slidervalue").html(sliderValue);
-            generateDynamicRectangle(sliderValue);
-        })
+            const area = parseFloat($("#areaInput").val());
+            const center = marker.getLatLng() || map.getCenter();
+            if (!area || area <= 0) {
+                const return_area = 0;
+                return {center, return_area, sliderValue};
+            }
+            return {center, area, sliderValue};
+        }
+        function addGeoJsonToDrawnItems(geojson) {
+            if (geojson) {
+                dynamicLayer = L.geoJSON(geojson);
+                dynamicLayer.eachLayer(layer => {
+                    addLayerEvents(layer);
+                    addToDrawnItemsLayer(layer);
+                });
+            }
+        }
+        function updateDynamicRectangle(){
+            const {center, area, sliderValue} = getDynamicRectangleInputs();
+            if (dynamicLayer) {
+                dynamicLayer.eachLayer(layer => {
+                    drawnItems.removeLayer(layer);
+                });
+            }
+            const square = generateDynamicRectangle(center, area, sliderValue);
+            addGeoJsonToDrawnItems(square);
+        }
+        $("#shapeSlider").on("input", updateDynamicRectangle);
+
         $("#circleBtn").on("click", function () {
             generateShape("circle");
         });
@@ -298,46 +355,11 @@
         //function Area(){
         //     Area = parseFloat($("#areaInput").val());
         // }
-        function generateDynamicRectangle(sliderValue) {
-            if (dynamicLayer){
-                dynamicLayer.eachLayer(layer => {
-                    drawnItems.removeLayer(layer);
-                });
-            }
-            const area = parseFloat($("#areaInput").val());
-            if (!area || area <= 0)
-                return;
-            const center = map.getCenter();
 
-            const a = Math.sqrt(area)*sliderValue;
-            const b = area/a;
-            const c = Math.sqrt((a/2)**2 + (b/2)**2);
-            const alpha = (180/Math.PI)* Math.atan(a/b);
-            //const alpha2 = alpha * (180 / Math.PI);
-
-            const turfcenter = [center.lng, center.lat];
-            const p1 = turf.destination(turfcenter, c, 90-alpha,{ units: "meters" });
-            const p2 = turf.destination(turfcenter, c, 90+alpha, { units: "meters" });
-            const p3 = turf.destination(turfcenter, c, -alpha-90, { units: "meters" });
-            const p4 = turf.destination(turfcenter, c, -90+alpha, { units: "meters" });
-
-            const square = turf.polygon([[
-                p1.geometry.coordinates,
-                p2.geometry.coordinates,
-                p3.geometry.coordinates,
-                p4.geometry.coordinates,
-                p1.geometry.coordinates
-            ]]);
-            dynamicLayer = L.geoJSON(square);
-            dynamicLayer.eachLayer(layer => {
-                addLayerEvents(layer);
-                addToDrawnItemsLayer(layer);
-            });
-        }
 
         function generateShape(shapeMode) {
             const area = parseFloat($("#areaInput").val());
-            if (area < 0) {
+            if (area <= 0) {
                 alert("Enter valid area!");
                 return;
             }
@@ -357,19 +379,18 @@
                 });
             }
             else if (shapeMode === "square") {
-                generateDynamicRectangle();
                 const side = Math.sqrt(area);
                 const halfSide = side / 2;
 
                 const centerLatLng = map.getCenter();
-                const center = turf.point([centerLatLng.lng, centerLatLng.lat]);
+                const cent = turf.point([centerLatLng.lng, centerLatLng.lat]);
 
                 const cornerDistance = halfSide * Math.sqrt(2);
 
-                const p1 = turf.destination(center, cornerDistance, 45, { units: "meters" });
-                const p2 = turf.destination(center, cornerDistance, 135, { units: "meters" });
-                const p3 = turf.destination(center, cornerDistance, 225, { units: "meters" });
-                const p4 = turf.destination(center, cornerDistance, 315, { units: "meters" });
+                const p1 = turf.destination(cent, cornerDistance, 45, { units: "meters" });
+                const p2 = turf.destination(cent, cornerDistance, 135, { units: "meters" });
+                const p3 = turf.destination(cent, cornerDistance, 225, { units: "meters" });
+                const p4 = turf.destination(cent, cornerDistance, 315, { units: "meters" });
 
                 const square = turf.polygon([[
                     p1.geometry.coordinates,
@@ -430,6 +451,7 @@
     } catch (err) {
         alert("Invalid GeoJSON");
     }
+
 }   up is JS version */      //=======> Text input:
         function evt_listener(e) {
             e.preventDefault();
@@ -484,7 +506,17 @@
             "Drawn": drawnItems
         }).addTo(map);
 
-
+        map.on("click", function (e) {
+            if (e.originalEvent.target.closest(".leaflet-interactive")) {// this helps to not make marker on the shape existing already
+                return;
+            }
+            if (marker) {  // Remove old marker if exists
+                drawnItems.removeLayer(marker);
+            }
+            // Add new marker
+            marker = L.marker(e.latlng, {draggable: true}).addTo(drawnItems);
+            marker.on("drag", updateDynamicRectangle)
+        });
         const controls = $("#controls");
         const unionBtn = $("<button>Union", {
             "type": "button",
@@ -539,9 +571,6 @@
             });
             select.append(opt);
         });
-
-
-
         /* $("generateCircleByArea").on("click", function (e) {
              const area = parseFloat($("areaInput").val());
              if (!area|| area < 1 ){
@@ -552,8 +581,6 @@
          const Rad = Math.sqrt(area / Math.PI);
          const circle = turf.circle*/
     });
-
-
 </script>
 
 </body>
